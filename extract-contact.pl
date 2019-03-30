@@ -13,9 +13,14 @@ foreach my $f (@ARGV) {
 	$s = <$fh>;
     }
 
-    exit 1 unless $s =~ m{(<\?xml version="1.0".+</plist>)\n\z}s;
+    next unless $s =~ m{(<\?xml version="1.0".+</plist>)\n\z}s;
 
-    my $plist = XML::Parser->new(Style => 'Tree')->parse($1);
+    my $plist;
+    eval { $plist = XML::Parser->new(Style => 'Tree')->parse($1) };
+    if ($@) {
+	warn "$f: $@\n";
+	next;
+    }
     my $dict = $plist->[1][4];
 
     my $found;
@@ -29,14 +34,22 @@ foreach my $f (@ARGV) {
 		last unless $email;
 	    }
 
+	    elsif ($dict->[$i+1][2] =~ /([^<]+)\s+<([^>]+)>/) {
+		$name = $1;
+		$email = $2;
+	    }
+
 	    else {
-		$name = $email = $dict->[$i+1][2];
+		$name = $dict->[$i+1][2];
+		($email) = $dict->[$i+1][2] =~ /<([^>]+)>/;
+		last unless $email;
 	    }
 
 	    print "BEGIN:VCARD\n";
 	    print "VERSION:4.0\n";
 	    print "FN:$name\n";
 	    print "EMAIL;TYPE=home:$email\n";
+	    print "NOTE:$f\n";
 	    print "END:VCARD\n";
 	    last;
 	}
